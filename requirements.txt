@@ -1,1 +1,2 @@
 gunicorn
+pip install opencv-python
