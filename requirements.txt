@@ -1,2 +1,5 @@
 gunicorn
 pip install opencv-python
+pip install flask face_recognition numpy opencv-python werkzeug pillow gunicorn
+pip freeze > requirements.txt
+
