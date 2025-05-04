@@ -1,29 +1,18 @@
-FROM python:3.7.4-slim
-
-# Avoids buffering Python stdout/stderr
-ENV PYTHONUNBUFFERED=1
-
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
-    build-essential \
-    cmake \
-    libopenblas-dev \
-    liblapack-dev \
-    libx11-dev \
-    libgtk-3-dev \
-    libboost-all-dev \
-    && rm -rf /var/lib/apt/lists/*
+# Use a prebuilt image with dlib and Python 3.7
+FROM facehub/python-dlib:py37-cpu
 
 # Set working directory
 WORKDIR /app
 
-# Copy your code
-COPY . /app/
+# Copy all files into the container
+COPY . .
 
-# Install Python dependencies
+# Install Python packages
 RUN pip install --upgrade pip
 RUN pip install -r requirements.txt
 
-# Expose port and run the app
+# Expose default port
 EXPOSE 8000
+
+# Start the Flask app using gunicorn
 CMD ["gunicorn", "app:app", "--bind", "0.0.0.0:8000"]
