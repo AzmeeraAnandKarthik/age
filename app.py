@@ -1,13 +1,13 @@
 import os
 import cv2
-import face_recognition
 import numpy as np
 import datetime
-from flask import Flask, render_template, request, Response, redirect, url_for
+from flask import Flask, render_template, request, Response
 from werkzeug.utils import secure_filename
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+from deepface import DeepFace
 
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = 'static'
@@ -26,7 +26,6 @@ def send_email_alert(recipient_email, person_name, matched_img_path):
     body = f"Hello,\n\nA face match has been found for {person_name}. The matched face is attached."
     message.attach(MIMEText(body, "plain"))
 
-    # Attach matched image
     try:
         with open(matched_img_path, 'rb') as f:
             from email.mime.image import MIMEImage
@@ -91,10 +90,9 @@ def extract():
     else:
         return "Frame extraction failed"
 
-def gen_frames(known_encoding, name, email):
+def gen_frames(known_image_path, name, email):
     cap = cv2.VideoCapture(0)
     match_sent = False
-
     matched_folder = os.path.join('matched', name)
     os.makedirs(matched_folder, exist_ok=True)
 
@@ -103,13 +101,14 @@ def gen_frames(known_encoding, name, email):
         if not success:
             break
 
-        rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        face_locations = face_recognition.face_locations(rgb_frame)
-        face_encodings = face_recognition.face_encodings(rgb_frame, face_locations)
-
-        for (top, right, bottom, left), face_encoding in zip(face_locations, face_encodings):
-            matches = face_recognition.compare_faces([known_encoding], face_encoding)
-            if matches[0]:
+        try:
+            result = DeepFace.find(
+                img_path=frame,
+                db_path=os.path.join('dataset', name),
+                enforce_detection=False,
+                silent=True
+            )
+            if len(result) > 0 and len(result[0]) > 0:
                 label = name
                 color = (0, 255, 0)
 
@@ -124,8 +123,11 @@ def gen_frames(known_encoding, name, email):
                 label = "Unknown"
                 color = (0, 0, 255)
 
-            cv2.rectangle(frame, (left, top), (right, bottom), color, 2)
-            cv2.putText(frame, label, (left, top - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.8, color, 2)
+            # Optional: draw box around detected face (if needed, use cv2's face detector)
+            cv2.putText(frame, label, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, color, 2)
+
+        except Exception as e:
+            print(f"[ERROR] Face comparison failed: {e}")
 
         ret, buffer = cv2.imencode('.jpg', frame)
         frame = buffer.tobytes()
@@ -140,14 +142,7 @@ def start_camera():
     if not os.path.exists(image_path):
         return "User image not found."
 
-    image = face_recognition.load_image_file(image_path)
-    encoding = face_recognition.face_encodings(image)
-
-    if not encoding:
-        return "No face found in extracted image."
-    
-    known_encoding = encoding[0]
-    return Response(gen_frames(known_encoding, name, email), mimetype='multipart/x-mixed-replace; boundary=frame')
+    return Response(gen_frames(image_path, name, email), mimetype='multipart/x-mixed-replace; boundary=frame')
 
 #if __name__ == '__main__':
-#    app.run(debug=True)
+ #   app.run(debug=True)
