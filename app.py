@@ -8,6 +8,7 @@ import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from deepface import DeepFace
+from email.mime.image import MIMEImage
 
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = 'static'
@@ -15,7 +16,7 @@ os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
 # Email Config
 SENDER_EMAIL = "chantyanand23@gmail.com"
-SENDER_PASSWORD = "iwwnhymabugyopat"  # Use Gmail App Password
+SENDER_PASSWORD = "iwwnhymabugyopat"  # Gmail App Password
 
 def send_email_alert(recipient_email, person_name, matched_img_path):
     message = MIMEMultipart()
@@ -23,17 +24,16 @@ def send_email_alert(recipient_email, person_name, matched_img_path):
     message["To"] = recipient_email
     message["Subject"] = f"Match Found for {person_name}"
 
-    body = f"Hello,\n\nA face match has been found for {person_name}. The matched face is attached."
+    body = f"Hello,\n\nA face match has been found for {person_name}. See the attached image."
     message.attach(MIMEText(body, "plain"))
 
     try:
         with open(matched_img_path, 'rb') as f:
-            from email.mime.image import MIMEImage
             img = MIMEImage(f.read())
             img.add_header('Content-Disposition', 'attachment', filename=os.path.basename(matched_img_path))
             message.attach(img)
     except Exception as e:
-        print(f"[ERROR] Failed to attach matched image: {e}")
+        print(f"[ERROR] Failed to attach image: {e}")
 
     try:
         server = smtplib.SMTP("smtp.gmail.com", 587)
@@ -49,14 +49,13 @@ def extract_frame(video_path, frame_number, save_path):
     cap = cv2.VideoCapture(video_path)
     total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
     frame_number = min(frame_number, total_frames - 1)
-
     cap.set(cv2.CAP_PROP_POS_FRAMES, frame_number)
     success, frame = cap.read()
 
     if success:
         os.makedirs(os.path.dirname(save_path), exist_ok=True)
         cv2.imwrite(save_path, frame)
-        print(f"[INFO] Extracted frame saved to {save_path}")
+        print(f"[INFO] Frame saved to {save_path}")
         return True
     else:
         print("[ERROR] Frame extraction failed.")
@@ -71,8 +70,8 @@ def extract():
     name = request.form['name']
     email = request.form['email']
     age = int(request.form['age'])
-
     video = request.files['video']
+
     filename = secure_filename(video.filename)
     video_path = os.path.join(app.config['UPLOAD_FOLDER'], 'temp.mp4')
     video.save(video_path)
@@ -85,7 +84,7 @@ def extract():
     success = extract_frame(video_path, frame_number, save_path)
 
     if success:
-        image_path = os.path.join('/dataset', name, f'{name}.jpg')
+        image_path = os.path.join('dataset', name, f'{name}.jpg')
         return render_template('home.html', image_path=image_path, name=name, email=email)
     else:
         return "Frame extraction failed"
@@ -123,11 +122,10 @@ def gen_frames(known_image_path, name, email):
                 label = "Unknown"
                 color = (0, 0, 255)
 
-            # Optional: draw box around detected face (if needed, use cv2's face detector)
             cv2.putText(frame, label, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, color, 2)
 
         except Exception as e:
-            print(f"[ERROR] Face comparison failed: {e}")
+            print(f"[ERROR] DeepFace failed: {e}")
 
         ret, buffer = cv2.imencode('.jpg', frame)
         frame = buffer.tobytes()
@@ -144,5 +142,5 @@ def start_camera():
 
     return Response(gen_frames(image_path, name, email), mimetype='multipart/x-mixed-replace; boundary=frame')
 
-#if __name__ == '__main__':
- #   app.run(debug=True)
+if __name__ == '__main__':
+    app.run(debug=True)
